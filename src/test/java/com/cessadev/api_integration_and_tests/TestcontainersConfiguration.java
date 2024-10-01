@@ -9,6 +9,7 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {
 
+    @SuppressWarnings("resource")
     @Bean
     @ServiceConnection
     PostgreSQLContainer<?> postgreSQLContainer() {
