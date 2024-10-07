@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 
 import com.cessadev.api_integration_and_tests.client.WeatherFeignClient;
+import com.cessadev.api_integration_and_tests.model.dto.ErrorResponseDTO;
 import com.cessadev.api_integration_and_tests.model.dto.WeatherResponseDTO;
 import com.cessadev.api_integration_and_tests.service.IWeatherService;
 
@@ -29,32 +30,40 @@ public class WeatherService implements IWeatherService {
     }
 
     @Override
-    @CircuitBreaker(name = "weatherService", fallbackMethod = "fallbackWeather")
+    @CircuitBreaker(name = "weatherService", fallbackMethod = "fallbackGetWeather")
     public WeatherResponseDTO getWeather(String city) {
         return weatherFeignClient.getWeather(city, apiKey);
     }
 
-    public WeatherResponseDTO fallbackWeather(String city, Throwable throwable) {
-        // Check if throwable is null
-        String errorMessage = (throwable != null && throwable.getMessage() != null) ? throwable.getMessage() : "Unknown error";
+    // Fallback method
+    public ErrorResponseDTO fallbackGetWeather(String city, Throwable throwable) {
+        // Get error message
+        String errorMessage = (throwable != null && throwable.getMessage() != null) ? throwable.getMessage()
+                : "Unknown error";
 
-        // Register the error
+        // Handling TimeoutException
         if (throwable instanceof TimeoutException) {
             logger.warn("Timeout while fetching weather data for city: {}", city);
-            return new WeatherResponseDTO("Weather data not available due to timeout", null);
-        } else if (throwable instanceof HttpClientErrorException) {
+            return new ErrorResponseDTO("Weather data not available due to timeout", city, errorMessage);
+        }
+
+        // Handling HttpClientErrorException (errors 4xx)
+        else if (throwable instanceof HttpClientErrorException) {
             logger.error("4xx error while fetching weather data for city: {}. Reason: {}", city, errorMessage);
-            return new WeatherResponseDTO("Weather data not available due to client error", null);
-        } else {
+            return new ErrorResponseDTO("Weather data not available due to client error", city, errorMessage);
+        }
+
+        // Handling others errors
+        else {
             logger.error("Unexpected error while fetching weather data for city: {}. Reason: {}", city, errorMessage);
-            return new WeatherResponseDTO("Weather data not available due to unexpected error", null);
+            return new ErrorResponseDTO("Weather data not available due to unexpected error", city, errorMessage);
         }
     }
 
     // Example with WebClient (If you need reactive support):
 
-    /* 
-
+    /*
+    
     private final WebClient webClient;
 
     @Value("${weather.api.key}")
@@ -64,6 +73,8 @@ public class WeatherService implements IWeatherService {
         this.webClient = webClientBuilder.baseUrl("https://api.openweathermap.org").build();
     }
 
+    @Override
+    @CircuitBreaker(name = "weatherService", fallbackMethod = "fallbackGetWeather")
     public Mono<WeatherResponseDTO> getWeather(String city) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/data/2.5/weather")
@@ -73,7 +84,7 @@ public class WeatherService implements IWeatherService {
                 .retrieve()
                 .bodyToMono(WeatherResponseDTO.class);
     }
-
-     */
     
+     */
+
 }
